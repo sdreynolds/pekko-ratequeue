@@ -25,7 +25,7 @@ object QueueOfQueues {
   private case class FailedDequeue(replyTo: ActorRef[Response], identifier: String) extends Command
 
   trait Response
-  case class NextEvent(json: String) extends Response
+  case class NextEvent(json: String, identifier: String) extends Response
   case class Empty() extends Response
 
   class QueueItem[T](val identifier: String, val jsonObject: T, val queueRelease: Instant)  extends Comparable[QueueItem[T]] {
@@ -79,13 +79,13 @@ object QueueOfQueues {
 
         // Handling commands for Dequeue from the phone number queue
         case Event(replyTo, json, identifier) => {
-          replyTo ! NextEvent(json)
+          replyTo ! NextEvent(json, identifier)
           val reQueueItem = new QueueItem(identifier, json, Instant.now().minusSeconds(1))
           queue.add(reQueueItem)
           Behaviors.same
         }
         case LastEvent(replyTo, json, identifier) => {
-          replyTo ! NextEvent(json)
+          replyTo ! NextEvent(json, identifier)
 
           // remove from active queues
           // @TODO: probably need to list to all signals of child and remove if they stop instead of here

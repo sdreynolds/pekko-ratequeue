@@ -28,7 +28,7 @@ class QueueOfQueuesSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike 
 
       val inbox = testKit.createTestProbe[Response]()
       queue ! Dequeue(inbox.ref)
-      inbox.expectMessage(NextEvent(json = jsonPayload ))
+      inbox.expectMessage(NextEvent(json = jsonPayload, identifier = "18009999999" ))
 
       // @TODO: peek to see if child is stopped
       queue ! Dequeue(inbox.ref)
@@ -43,10 +43,10 @@ class QueueOfQueuesSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike 
 
       val inbox = testKit.createTestProbe[Response]()
       queue ! Dequeue(inbox.ref)
-      inbox.expectMessage(NextEvent(json = jsonPayload ))
+      inbox.expectMessage(NextEvent(json = jsonPayload, identifier = "18009999999" ))
 
       queue ! Dequeue(inbox.ref)
-      inbox.expectMessage(NextEvent(json = jsonPayload ))
+      inbox.expectMessage(NextEvent(json = jsonPayload, identifier = "18009999999" ))
 
       // @TODO: peek to see if child is stopped
       queue ! Dequeue(inbox.ref)
