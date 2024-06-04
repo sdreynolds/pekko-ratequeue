@@ -18,7 +18,7 @@ import org.apache.pekko.actor.testkit.typed.scaladsl.FishingOutcomes
 class TransactorSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
   "Transactor" must {
     "When empty return empty" in {
-      val transactor = testKit.spawn(Transactor())
+      val transactor = testKit.spawn(Transactor(50.millis))
       val inbox = testKit.createTestProbe[Response]()
 
       transactor ! Dequeue(inbox.ref)
@@ -26,7 +26,7 @@ class TransactorSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
     }
   }
   "Return the payload enqueued" in {
-    val transactor = testKit.spawn(Transactor())
+    val transactor = testKit.spawn(Transactor(50.millis))
     val inbox = testKit.createTestProbe[Response]()
 
     val jsonPayload = "{\"awesome\": \"yes\"}"
@@ -58,7 +58,7 @@ class TransactorSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
 
     transactor ! Dequeue(inbox.ref)
 
-    inbox.fishForMessage(300.millis)(m => {
+    inbox.fishForMessage(50.millis)(m => {
       m match {
         case Empty() => {
           transactor ! Dequeue(inbox.ref)
@@ -67,5 +67,33 @@ class TransactorSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
         case _: Transaction => FishingOutcomes.complete
       }
     })
+  }
+
+  "Should enqueue the timed out transaction" in {
+
+    val transactor = testKit.spawn(Transactor(50.millis))
+    val inbox = testKit.createTestProbe[Response]()
+
+    val jsonPayload = "{\"awesome\": \"yes\"}"
+    transactor ! Enqueue("+18009999999", jsonPayload)
+
+    transactor ! Dequeue(inbox.ref)
+    val transaction = inbox.expectMessageType[Transaction]
+    transaction.jsonObject should equal (jsonPayload)
+
+    transactor ! Dequeue(inbox.ref)
+
+    // loop until we get the message
+    val responses = inbox.fishForMessage(500.millis)(m => {
+      m match {
+        case Empty() => {
+          transactor ! Dequeue(inbox.ref)
+          FishingOutcomes.continueAndIgnore
+        }
+        case _: Transaction => FishingOutcomes.complete
+      }
+    })
+
+    transactor ! CompleteTransaction(UUID.fromString(responses.head.asInstanceOf[Transaction].id))
   }
 }

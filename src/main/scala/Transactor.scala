@@ -28,14 +28,14 @@ object Transactor {
   case class Transaction(id: String, identifier: String, jsonObject: String) extends Response
   case class Empty() extends Response
 
-  def apply(): Behavior[Command] = {
+  def apply(transactionDuration: FiniteDuration = FiniteDuration(10, "seconds")): Behavior[Command] = {
     Behaviors.setup {context =>
       val queue = context.spawnAnonymous(QueueOfQueues())
-      transactorBehavior(Map.empty, queue)
+      transactorBehavior(Map.empty, queue, transactionDuration)
     }
   }
 
-  private def transactorBehavior(activeTransactions: Map[UUID, Cancellable], queue: ActorRef[QueueOfQueues.Command]): Behavior[Command] = {
+  private def transactorBehavior(activeTransactions: Map[UUID, Cancellable], queue: ActorRef[QueueOfQueues.Command], transactionDuration: FiniteDuration): Behavior[Command] = {
     Behaviors.receive((context, message) => {
       message match {
         case Enqueue(identifier, jsonObject) => {
@@ -59,19 +59,19 @@ object Transactor {
 
           // Canceling a already fired Cancelable is ok
           activeTransactions.get(uuid).map(_.cancel())
-          transactorBehavior(activeTransactions - uuid, queue)
+          transactorBehavior(activeTransactions - uuid, queue, transactionDuration)
         }
         case CompleteTransaction(uuid) => {
           activeTransactions.get(uuid).map(_.cancel())
-          transactorBehavior(activeTransactions - uuid, queue)
+          transactorBehavior(activeTransactions - uuid, queue, transactionDuration)
         }
 
         case StartTransaction(replyTo, uuid, identifier, jsonObject) => {
           replyTo ! Transaction(uuid.toString(), identifier, jsonObject)
 
           transactorBehavior(activeTransactions +
-            (uuid -> context.scheduleOnce(FiniteDuration(10, "seconds"), context.self, FailedTransaction(uuid, identifier, jsonObject))),
-            queue)
+            (uuid -> context.scheduleOnce(transactionDuration, context.self, FailedTransaction(uuid, identifier, jsonObject))),
+            queue, transactionDuration)
         }
         case StartEmpty(replyTo) => {
           replyTo ! Empty()
