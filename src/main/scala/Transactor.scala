@@ -15,7 +15,7 @@ import scala.concurrent.duration.FiniteDuration
 import org.apache.pekko.actor.Cancellable
 
 object Transactor {
-  trait Command
+  sealed trait Command
   case class Enqueue(identifier: String, jsonObject: String) extends Command
   case class Dequeue(replyTo: ActorRef[Response]) extends Command
   case class CompleteTransaction(transactionid: UUID) extends Command
@@ -24,7 +24,7 @@ object Transactor {
   private case class StartEmpty(replyTo: ActorRef[Response]) extends Command
 
 
-  trait Response
+  sealed trait Response
   case class Transaction(id: String, identifier: String, jsonObject: String) extends Response
   case class Empty() extends Response
 
@@ -48,10 +48,6 @@ object Transactor {
               case Success(QueueOfQueues.NextEvent(json, identifier)) => StartTransaction(replyTo, UUID.randomUUID(), identifier, json)
               case Success(QueueOfQueues.Empty()) => StartEmpty(replyTo)
               case Failure(ex) => StartEmpty(replyTo)
-              case scala.util.Success(_) => {
-                context.log.error("Received an unexpected Success")
-                StartEmpty(replyTo)
-              }
             }
           })(Timeout(3, TimeUnit.SECONDS))
 

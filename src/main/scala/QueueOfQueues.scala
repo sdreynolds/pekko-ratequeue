@@ -17,14 +17,14 @@ import scala.util.Try
 
 
 object QueueOfQueues {
-  trait Command
+  sealed trait Command
   case class Enqueue(identifier: String, jsonObject: String) extends Command
   case class Dequeue(replyTo: ActorRef[Response]) extends Command
   private case class Event(replyTo: ActorRef[Response], json: String, identifier: String) extends Command
   private case class LastEvent(replyTo: ActorRef[Response], json: String, identifier: String) extends Command
   private case class FailedDequeue(replyTo: ActorRef[Response], identifier: String) extends Command
 
-  trait Response
+  sealed trait Response
   case class NextEvent(json: String, identifier: String) extends Response
   case class Empty() extends Response
 
@@ -70,7 +70,6 @@ object QueueOfQueues {
               case Some(childRawActor) => {
                 val childActor = childRawActor.asInstanceOf[ActorRef[PhoneQueue.Command]]
                 context.ask(childActor, PhoneQueue.Dequeue.apply)((attempt: Try[PhoneQueue.Response]) =>
-                  // @TODO: weird that this says "may not be exhaustive"
                   attempt match {
                     case Success(PhoneQueue.NextEvent(json: String)) => Event(replyTo, json, next.identifier)
                     case Success(PhoneQueue.NextEventAndEmpty(json: String)) => LastEvent(replyTo, json, next.identifier)
@@ -95,16 +94,10 @@ object QueueOfQueues {
         }
         case LastEvent(replyTo, json, identifier) => {
           replyTo ! NextEvent(json, identifier)
-
-          // remove from active queues
-          // @TODO: probably need to list to all signals of child and remove if they stop instead of here
           queueBehavior(queue)
         }
         case FailedDequeue(replyTo, identifier) =>
           replyTo ! Empty()
-
-          // remove from active queues
-          // @TODO: Need to send the kill signal to this child? Will it just keep running?
           queueBehavior(queue)
       }
     })

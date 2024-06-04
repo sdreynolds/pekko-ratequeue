@@ -7,11 +7,11 @@ import scala.collection.immutable.Queue
 import org.apache.pekko.actor.typed.ActorRef
 
 object PhoneQueue {
-  trait Command
+  sealed trait Command
   case class Enqueue[T](jsonObject: T) extends Command
   case class Dequeue(replyTo: ActorRef[Response]) extends Command
 
-  trait Response
+  sealed trait Response
   case class NextEvent[T](json: T) extends Response
   case class NextEventAndEmpty[T](json: T) extends Response
 
