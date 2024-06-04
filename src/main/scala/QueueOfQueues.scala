@@ -34,28 +34,28 @@ object QueueOfQueues {
 
   def apply(): Behavior[Command] = {
     val queue = new PriorityQueue[QueueItem[String]]()
-    val activeQueues = Map[String, ActorRef[PhoneQueue.Command]]()
-    queueBehavior(queue, activeQueues)
+    queueBehavior(queue)
   }
 
-  private def queueBehavior[T](queue: PriorityQueue[QueueItem[String]], activeQueues: Map[String, ActorRef[PhoneQueue.Command]]): Behavior[Command] = {
+  private def queueBehavior[T](queue: PriorityQueue[QueueItem[String]]): Behavior[Command] = {
     Behaviors.receive((context, msg) => {
       msg match {
         case Enqueue(identifier, jsonObject: String) => {
-          if activeQueues.contains(identifier) then {
-            activeQueues(identifier) ! PhoneQueue.Enqueue(jsonObject)
-            queueBehavior(queue, activeQueues)
-          }
-          else {
-            val newQueue = context.spawn(PhoneQueue[String](), identifier)
-            val queueItem = new QueueItem[String](identifier, jsonObject, Instant.now())
-            queue.add(queueItem)
 
-            newQueue ! PhoneQueue.Enqueue(jsonObject)
+          context.child(identifier) match {
+            case Some(childRawActor) => {
+              val childActor = childRawActor.asInstanceOf[ActorRef[PhoneQueue.Command]]
+              childActor ! PhoneQueue.Enqueue(jsonObject)
+            }
+            case None => {
+              val newQueue = context.spawn(PhoneQueue[String](), identifier)
+              val queueItem = new QueueItem[String](identifier, jsonObject, Instant.now())
+              queue.add(queueItem)
 
-            queueBehavior(queue,
-              activeQueues + (identifier -> newQueue))
+              newQueue ! PhoneQueue.Enqueue(jsonObject)
+            }
           }
+          queueBehavior(queue)
         }
         case Dequeue(replyTo) => {
           if queue.isEmpty()
@@ -65,18 +65,27 @@ object QueueOfQueues {
           } else {
 
             val next = queue.poll()
-            context.ask(activeQueues(next.identifier), PhoneQueue.Dequeue.apply)((attempt: Try[PhoneQueue.Response]) =>
-              // @TODO: weird that this says "may not be exhaustive"
-              attempt match {
-                case Success(PhoneQueue.NextEvent(json: String)) => Event(replyTo, json, next.identifier)
-                case Success(PhoneQueue.NextEventAndEmpty(json: String)) => LastEvent(replyTo, json, next.identifier)
-                case Failure(ex) => FailedDequeue(replyTo, next.identifier)
-              })(Timeout(3, TimeUnit.SECONDS))
 
-            Behaviors.same
+            context.child(next.identifier) match {
+              case Some(childRawActor) => {
+                val childActor = childRawActor.asInstanceOf[ActorRef[PhoneQueue.Command]]
+                context.ask(childActor, PhoneQueue.Dequeue.apply)((attempt: Try[PhoneQueue.Response]) =>
+                  // @TODO: weird that this says "may not be exhaustive"
+                  attempt match {
+                    case Success(PhoneQueue.NextEvent(json: String)) => Event(replyTo, json, next.identifier)
+                    case Success(PhoneQueue.NextEventAndEmpty(json: String)) => LastEvent(replyTo, json, next.identifier)
+                    case Failure(ex) => FailedDequeue(replyTo, next.identifier)
+                  }
+                )(Timeout(3, TimeUnit.SECONDS))
+              }
+              case None => {
+                context.log.error("lost phone number queue for identifer {}", next)
+                context.self ! FailedDequeue(replyTo, next.identifier)
+              }
+            }
           }
+          Behaviors.same
         }
-
         // Handling commands for Dequeue from the phone number queue
         case Event(replyTo, json, identifier) => {
           replyTo ! NextEvent(json, identifier)
@@ -89,14 +98,14 @@ object QueueOfQueues {
 
           // remove from active queues
           // @TODO: probably need to list to all signals of child and remove if they stop instead of here
-          queueBehavior(queue, activeQueues - identifier)
+          queueBehavior(queue)
         }
         case FailedDequeue(replyTo, identifier) =>
           replyTo ! Empty()
 
           // remove from active queues
           // @TODO: Need to send the kill signal to this child? Will it just keep running?
-          queueBehavior(queue, activeQueues - identifier)
+          queueBehavior(queue)
       }
     })
   }
