@@ -14,19 +14,19 @@ import org.apache.pekko.actor.testkit.typed.scaladsl.TestInbox
 class QueueOfQueuesSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
   "QueueOfQueues" must {
     "When empty return empty" in {
-      val queue = testKit.spawn(QueueOfQueues())
-      val inbox = testKit.createTestProbe[Response]()
+      val queue = testKit.spawn(QueueOfQueues[String]())
+      val inbox = testKit.createTestProbe[Response[String]]()
       queue ! Dequeue(inbox.ref)
       inbox.expectMessage(Empty())
     }
 
     "Return the payload added to the queue" in {
-      val queue = testKit.spawn(QueueOfQueues())
+      val queue = testKit.spawn(QueueOfQueues[String]())
       val jsonPayload = "{\"awesome\": \"yes\"}"
 
       queue ! Enqueue("18009999999", jsonPayload)
 
-      val inbox = testKit.createTestProbe[Response]()
+      val inbox = testKit.createTestProbe[Response[String]]()
       queue ! Dequeue(inbox.ref)
       inbox.expectMessage(NextEvent(json = jsonPayload, identifier = "18009999999" ))
 
@@ -35,13 +35,13 @@ class QueueOfQueuesSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike 
       inbox.expectMessage(Empty())
     }
     "Return multiple payloads added to the queue" in {
-      val queue = testKit.spawn(QueueOfQueues())
+      val queue = testKit.spawn(QueueOfQueues[String]())
       val jsonPayload = "{\"awesome\": \"yes\"}"
 
       queue ! Enqueue("18009999999", jsonPayload)
       queue ! Enqueue("18009999999", jsonPayload)
 
-      val inbox = testKit.createTestProbe[Response]()
+      val inbox = testKit.createTestProbe[Response[String]]()
       queue ! Dequeue(inbox.ref)
       inbox.expectMessage(NextEvent(json = jsonPayload, identifier = "18009999999" ))
 

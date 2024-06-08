@@ -15,27 +15,27 @@ import scala.concurrent.duration.FiniteDuration
 import org.apache.pekko.actor.Cancellable
 
 object Transactor {
-  sealed trait Command
-  case class Enqueue(identifier: String, jsonObject: String) extends Command
-  case class Dequeue(replyTo: ActorRef[Response]) extends Command
-  case class CompleteTransaction(transactionid: UUID) extends Command
-  case class FailedTransaction(transactionId: UUID, identifier: String, jsonObject: String) extends Command
-  private case class StartTransaction(replyTo: ActorRef[Response], uuid: UUID, identifier: String, jsonObject: String) extends Command
-  private case class StartEmpty(replyTo: ActorRef[Response]) extends Command
+  sealed trait Command[T]
+  case class Enqueue[T](identifier: String, jsonObject: T) extends Command[T]
+  case class Dequeue[T](replyTo: ActorRef[Response[T]]) extends Command[T]
+  case class CompleteTransaction[T](transactionid: UUID) extends Command[T]
+  case class FailedTransaction[T](transactionId: UUID, identifier: String, jsonObject: T) extends Command[T]
+  private case class StartTransaction[T](replyTo: ActorRef[Response[T]], uuid: UUID, identifier: String, jsonObject: T) extends Command[T]
+  private case class StartEmpty[T](replyTo: ActorRef[Response[T]]) extends Command[T]
 
 
-  sealed trait Response
-  case class Transaction(id: String, identifier: String, jsonObject: String) extends Response
-  case class Empty() extends Response
+  sealed trait Response[T]
+  case class Transaction[T](id: String, identifier: String, jsonObject: T) extends Response[T]
+  case class Empty[T]() extends Response[T]
 
-  def apply(transactionDuration: FiniteDuration = FiniteDuration(10, "seconds")): Behavior[Command] = {
+  def apply[T](transactionDuration: FiniteDuration = FiniteDuration(10, "seconds")): Behavior[Command[T]] = {
     Behaviors.setup {context =>
-      val queue = context.spawnAnonymous(QueueOfQueues())
+      val queue = context.spawnAnonymous(QueueOfQueues[T]())
       transactorBehavior(Map.empty, queue, transactionDuration)
     }
   }
 
-  private def transactorBehavior(activeTransactions: Map[UUID, Cancellable], queue: ActorRef[QueueOfQueues.Command], transactionDuration: FiniteDuration): Behavior[Command] = {
+  private def transactorBehavior[T](activeTransactions: Map[UUID, Cancellable], queue: ActorRef[QueueOfQueues.Command[T]], transactionDuration: FiniteDuration): Behavior[Command[T]] = {
     Behaviors.receive((context, message) => {
       message match {
         case Enqueue(identifier, jsonObject) => {
@@ -43,7 +43,7 @@ object Transactor {
           Behaviors.same
         }
         case Dequeue(replyTo) => {
-          context.ask(queue, QueueOfQueues.Dequeue.apply)(attempt => {
+          context.ask(queue, QueueOfQueues.Dequeue[T].apply)(attempt => {
             attempt match {
               case Success(QueueOfQueues.NextEvent(json, identifier)) => StartTransaction(replyTo, UUID.randomUUID(), identifier, json)
               case Success(QueueOfQueues.Empty()) => StartEmpty(replyTo)

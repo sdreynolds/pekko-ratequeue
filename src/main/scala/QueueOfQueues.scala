@@ -17,39 +17,39 @@ import scala.util.Try
 
 
 object QueueOfQueues {
-  sealed trait Command
-  case class Enqueue(identifier: String, jsonObject: String) extends Command
-  case class Dequeue(replyTo: ActorRef[Response]) extends Command
-  private case class Event(replyTo: ActorRef[Response], json: String, identifier: String) extends Command
-  private case class LastEvent(replyTo: ActorRef[Response], json: String, identifier: String) extends Command
-  private case class FailedDequeue(replyTo: ActorRef[Response], identifier: String) extends Command
+  sealed trait Command[T]
+  case class Enqueue[T](identifier: String, jsonObject: T) extends Command[T]
+  case class Dequeue[T](replyTo: ActorRef[Response[T]]) extends Command[T]
+  private case class Event[T](replyTo: ActorRef[Response[T]], json: T, identifier: String) extends Command[T]
+  private case class LastEvent[T](replyTo: ActorRef[Response[T]], json: T, identifier: String) extends Command[T]
+  private case class FailedDequeue[T](replyTo: ActorRef[Response[T]], identifier: String) extends Command[T]
 
-  sealed trait Response
-  case class NextEvent(json: String, identifier: String) extends Response
-  case class Empty() extends Response
+  sealed trait Response[T]
+  case class NextEvent[T](json: T, identifier: String) extends Response[T]
+  case class Empty[T]() extends Response[T]
 
   class QueueItem[T](val identifier: String, val jsonObject: T, val queueRelease: Instant)  extends Comparable[QueueItem[T]] {
     def compareTo(other: QueueItem[T]) = queueRelease.compareTo(other.queueRelease)
   }
 
-  def apply(): Behavior[Command] = {
-    val queue = new PriorityQueue[QueueItem[String]]()
+  def apply[T](): Behavior[Command[T]] = {
+    val queue = new PriorityQueue[QueueItem[T]]()
     queueBehavior(queue)
   }
 
-  private def queueBehavior[T](queue: PriorityQueue[QueueItem[String]]): Behavior[Command] = {
+  private def queueBehavior[T](queue: PriorityQueue[QueueItem[T]]): Behavior[Command[T]] = {
     Behaviors.receive((context, msg) => {
       msg match {
-        case Enqueue(identifier, jsonObject: String) => {
+        case Enqueue(identifier, jsonObject) => {
 
           context.child(identifier) match {
             case Some(childRawActor) => {
-              val childActor = childRawActor.asInstanceOf[ActorRef[PhoneQueue.Command]]
+              val childActor = childRawActor.asInstanceOf[ActorRef[PhoneQueue.Command[T]]]
               childActor ! PhoneQueue.Enqueue(jsonObject)
             }
             case None => {
-              val newQueue = context.spawn(PhoneQueue[String](), identifier)
-              val queueItem = new QueueItem[String](identifier, jsonObject, Instant.now())
+              val newQueue = context.spawn(PhoneQueue[T](), identifier)
+              val queueItem = new QueueItem(identifier, jsonObject, Instant.now())
               queue.add(queueItem)
 
               newQueue ! PhoneQueue.Enqueue(jsonObject)
@@ -68,11 +68,11 @@ object QueueOfQueues {
 
             context.child(next.identifier) match {
               case Some(childRawActor) => {
-                val childActor = childRawActor.asInstanceOf[ActorRef[PhoneQueue.Command]]
-                context.ask(childActor, PhoneQueue.Dequeue.apply)((attempt: Try[PhoneQueue.Response]) =>
+                val childActor = childRawActor.asInstanceOf[ActorRef[PhoneQueue.Command[T]]]
+                context.ask(childActor, PhoneQueue.Dequeue[T].apply)((attempt: Try[PhoneQueue.Response[T]]) =>
                   attempt match {
-                    case Success(PhoneQueue.NextEvent(json: String)) => Event(replyTo, json, next.identifier)
-                    case Success(PhoneQueue.NextEventAndEmpty(json: String)) => LastEvent(replyTo, json, next.identifier)
+                    case Success(PhoneQueue.NextEvent(json)) => Event(replyTo, json, next.identifier)
+                    case Success(PhoneQueue.NextEventAndEmpty(json)) => LastEvent(replyTo, json, next.identifier)
                     case Failure(ex) => FailedDequeue(replyTo, next.identifier)
                   }
                 )(Timeout(3, TimeUnit.SECONDS))

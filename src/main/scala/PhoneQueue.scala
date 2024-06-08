@@ -7,17 +7,17 @@ import scala.collection.immutable.Queue
 import org.apache.pekko.actor.typed.ActorRef
 
 object PhoneQueue {
-  sealed trait Command
-  case class Enqueue[T](jsonObject: T) extends Command
-  case class Dequeue(replyTo: ActorRef[Response]) extends Command
+  sealed trait Command[T]
+  case class Enqueue[T](jsonObject: T) extends Command[T]
+  case class Dequeue[T](replyTo: ActorRef[Response[T]]) extends Command[T]
 
-  sealed trait Response
-  case class NextEvent[T](json: T) extends Response
-  case class NextEventAndEmpty[T](json: T) extends Response
+  sealed trait Response[T]
+  case class NextEvent[T](json: T) extends Response[T]
+  case class NextEventAndEmpty[T](json: T) extends Response[T]
 
-  def apply[T](): Behavior[Command] = queueState(Queue[T]())
+  def apply[T](): Behavior[Command[T]] = queueState(Queue[T]())
 
-  private def queueState[T](queue: Queue[T]): Behavior[Command] =
+  private def queueState[T](queue: Queue[T]): Behavior[Command[T]] =
     Behaviors.receiveMessage(msg => {
       msg match {
         case Enqueue(json) => queueState(queue.enqueue(json))
