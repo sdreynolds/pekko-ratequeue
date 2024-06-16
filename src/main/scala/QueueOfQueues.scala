@@ -48,7 +48,7 @@ object QueueOfQueues {
               childActor ! PhoneQueue.Enqueue(jsonObject)
             }
             case None => {
-              val newQueue = context.spawn(PhoneQueue[T](), identifier)
+              val newQueue = context.spawn(PhoneQueue[T](identifier), identifier)
               val queueItem = new QueueItem(identifier, jsonObject, Instant.now())
               queue.add(queueItem)
 

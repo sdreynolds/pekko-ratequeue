@@ -13,7 +13,7 @@ class PhoneQueueSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
   "PhoneQueue" must {
     "Return the Payload for the request"  in {
       val jsonPayload = "{\"awesome\": \"yes\"}"
-      val queue = testKit.spawn(PhoneQueue[String]())
+      val queue = testKit.spawn(PhoneQueue[String]("testing"))
       queue ! Enqueue(jsonPayload)
       val dequeueProbe = testKit.createTestProbe[Response[String]]()
 
@@ -23,7 +23,7 @@ class PhoneQueueSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
 
     "Return both payloads from the queue" in {
       val jsonPayload = "{\"awesome\": \"yes\"}"
-      val queue = testKit.spawn(PhoneQueue[String]())
+      val queue = testKit.spawn(PhoneQueue[String]("testing"))
       queue ! Enqueue(jsonPayload)
       queue ! Enqueue(jsonPayload)
       val dequeueProbe = testKit.createTestProbe[Response[String]]()

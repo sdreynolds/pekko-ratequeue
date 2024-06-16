@@ -15,9 +15,13 @@ lazy val service = project
     libraryDependencies += "org.scalatest" %% "scalatest" % scalaTestVersion,
 
     libraryDependencies += "org.apache.pekko" %% "pekko-actor-typed" % pekkoVersion,
+    libraryDependencies += "org.apache.pekko" %% "pekko-stream" % pekkoVersion,
     libraryDependencies += "org.apache.pekko" %% "pekko-actor-testkit-typed" % pekkoVersion % Test,
+    libraryDependencies += "org.apache.pekko" %% "pekko-persistence-typed" % pekkoVersion,
+    libraryDependencies += "org.apache.pekko" %% "pekko-persistence-testkit" % pekkoVersion % Test,
 
     libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % log4jVersion,
     libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % log4jVersion,
-    libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jVersion
+    libraryDependencies += "org.apache.logging.log4j" % "log4j-slf4j-impl" % log4jVersion,
+
   )
