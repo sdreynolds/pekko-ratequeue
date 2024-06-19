@@ -14,14 +14,14 @@ import org.apache.pekko.actor.testkit.typed.scaladsl.TestInbox
 class QueueOfQueuesSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
   "QueueOfQueues" must {
     "When empty return empty" in {
-      val queue = testKit.spawn(QueueOfQueues[String]())
+      val queue = testKit.spawn(QueueOfQueues[String]("abc"))
       val inbox = testKit.createTestProbe[Response[String]]()
       queue ! Dequeue(inbox.ref)
       inbox.expectMessage(Empty())
     }
 
     "Return the payload added to the queue" in {
-      val queue = testKit.spawn(QueueOfQueues[String]())
+      val queue = testKit.spawn(QueueOfQueues[String]("abc"))
       val jsonPayload = "{\"awesome\": \"yes\"}"
 
       queue ! Enqueue("18009999999", jsonPayload)
@@ -35,7 +35,7 @@ class QueueOfQueuesSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike 
       inbox.expectMessage(Empty())
     }
     "Return multiple payloads added to the queue" in {
-      val queue = testKit.spawn(QueueOfQueues[String]())
+      val queue = testKit.spawn(QueueOfQueues[String]("abci"))
       val jsonPayload = "{\"awesome\": \"yes\"}"
 
       queue ! Enqueue("18009999999", jsonPayload)

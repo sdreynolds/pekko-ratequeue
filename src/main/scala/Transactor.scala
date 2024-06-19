@@ -30,7 +30,7 @@ object Transactor {
 
   def apply[T](transactionDuration: FiniteDuration = FiniteDuration(10, "seconds")): Behavior[Command[T]] = {
     Behaviors.setup {context =>
-      val queue = context.spawnAnonymous(QueueOfQueues[T]())
+      val queue = context.spawnAnonymous(QueueOfQueues[T]("abc"))
       transactorBehavior(Map.empty, queue, transactionDuration)
     }
   }
