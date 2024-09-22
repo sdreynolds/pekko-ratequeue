@@ -1,5 +1,7 @@
 package com.github.sdreynolds.ratequeue
 
+import scala.concurrent.duration._
+
 import org.apache.pekko.actor.testkit.typed.scaladsl.ScalaTestWithActorTestKit
 import org.scalatest.wordspec.AnyWordSpecLike
 import com.github.sdreynolds.ratequeue.QueueOfQueues.{
@@ -10,6 +12,7 @@ import com.github.sdreynolds.ratequeue.QueueOfQueues.{
   Response
 }
 import org.apache.pekko.actor.testkit.typed.scaladsl.TestInbox
+import org.apache.pekko.actor.testkit.typed.javadsl.FishingOutcomes
 
 class QueueOfQueuesSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
   "QueueOfQueues" must {
@@ -46,7 +49,18 @@ class QueueOfQueuesSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike 
       inbox.expectMessage(NextEvent(json = jsonPayload, identifier = "18009999999" ))
 
       queue ! Dequeue(inbox.ref)
-      inbox.expectMessage(NextEvent(json = jsonPayload, identifier = "18009999999" ))
+
+      // Should not return for another second
+      val responses = inbox.fishForMessage(1000.millis)(m => {
+        m match
+        case Empty() => {
+          queue ! Dequeue(inbox.ref)
+          FishingOutcomes.continueAndCollect()
+        }
+        case _: NextEvent[String] => FishingOutcomes.complete()
+      })
+
+      assert(responses.length > 1, "Responses must have at least one Empty response")
 
       // @TODO: peek to see if child is stopped
       queue ! Dequeue(inbox.ref)

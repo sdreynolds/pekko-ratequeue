@@ -89,6 +89,9 @@ object QueueOfQueues {
     case Dequeue(replyTo) => {
       state.queue.headOption match
       case None => Effect.none.thenReply(replyTo)(_ => Empty())
+      case Some(next) if next.queueRelease.isAfter(Instant.now()) => Effect.none
+          .thenReply(replyTo)(_ => Empty())
+
       case Some(next) => {
         context.child(next.identifier) match {
           case Some(childRawActor) => {
@@ -114,7 +117,7 @@ object QueueOfQueues {
     case LastPayload(replyTo, json, identifier) => Effect.none.thenReply(replyTo)(_ => NextEvent(json, identifier))
 
     case Payload(replyTo, json, identifier) => Effect.persist(
-        ReEnqueuePhoneQueue(QueueItem(identifier, Instant.now().minusSeconds(1)))
+        ReEnqueuePhoneQueue(QueueItem(identifier, Instant.now().plusSeconds(1)))
     ).thenReply(replyTo)(_ => NextEvent(json, identifier))
 
     case FailedDequeue(replyTo, identifier) => Effect.persist(

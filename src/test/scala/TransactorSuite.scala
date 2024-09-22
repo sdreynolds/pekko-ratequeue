@@ -34,7 +34,7 @@ class TransactorSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
 
     transactor ! Dequeue(inbox.ref)
     val response = inbox.receiveMessage()
-    transactor ! CompleteTransaction[String](UUID.fromString(response.asInstanceOf[Transaction[String]].id))
+    transactor ! CompleteTransaction(UUID.fromString(response.asInstanceOf[Transaction[String]].id))
 
     response shouldBe a [Transaction[String]]
     response.asInstanceOf[Transaction[String]].jsonObject should equal (jsonPayload)
@@ -90,7 +90,12 @@ class TransactorSuite extends ScalaTestWithActorTestKit with AnyWordSpecLike {
           transactor ! Dequeue(inbox.ref)
           FishingOutcomes.continueAndIgnore
         }
-        case _: Transaction[String] => FishingOutcomes.complete
+        case Transaction(id, identifier, jsonObject: String, expires) => {
+          if jsonObject == jsonPayload then
+            FishingOutcomes.complete
+          else
+            FishingOutcomes.continueAndIgnore
+        }
       }
     })
 
